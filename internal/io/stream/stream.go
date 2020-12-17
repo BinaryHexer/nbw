@@ -8,7 +8,14 @@ import (
 	ext "github.com/reugn/go-streams/extension"
 
 	"github.com/BinaryHexer/nbw/pkg/stream"
+	"sync"
 )
+
+var bufPool = &sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, 500)
+	},
+}
 
 type Writer struct {
 	w    io.Writer
@@ -32,6 +39,8 @@ func NewWriter(w io.Writer, flows []streams.Flow) *Writer {
 }
 
 func (w *Writer) Write(p []byte) (int, error) {
+	// p might be pooled so we avoid to hold a reference to it, and instead copy it.
+	p = append(bufPool.Get().([]byte), p...)
 	w.in <- p
 
 	return len(p), nil
@@ -64,10 +73,21 @@ func (w *Writer) init(flows []streams.Flow) {
 
 func (w *Writer) write() {
 	for e := range w.out {
-		b := e.([]byte)
-		_, err := w.w.Write(b)
+		p := e.([]byte)
+		_, err := w.w.Write(p)
 		if err != nil {
 			log.Printf("err occurred: %v\n", err)
+		}
+
+		// Proper usage of a sync.Pool requires each entry to have approximately
+		// the same memory cost. To obtain this property when the stored type
+		// contains a variably-sized buffer, we add a hard limit on the maximum buffer
+		// to place back in the pool.
+		//
+		// See https://golang.org/issue/23199
+		const maxSize = 1 << 16 // 64KiB
+		if cap(p) <= maxSize {
+			bufPool.Put(p[:0])
 		}
 	}
 	close(w.done)

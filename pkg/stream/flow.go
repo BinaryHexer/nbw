@@ -1,10 +1,9 @@
 package stream
 
 import (
-	"runtime"
-
 	"github.com/reugn/go-streams"
 	"github.com/reugn/go-streams/flow"
+	"runtime"
 )
 
 type Metadata map[string]string
