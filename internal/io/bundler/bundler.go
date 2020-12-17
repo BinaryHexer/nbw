@@ -108,10 +108,10 @@ type Writer struct {
 // 	   onError := WithOnError(func(err error) {
 // 	   	   log.Printf("Dropped writes due to: %v", err)
 // 	   })
-// 	   wr := NewWriter(w, onError)
+// 	   wr := NewWriter(w, []WriterOption{onError})
 // 	   wr.Write([]byte("Hello, World!"))
 //
-// See https://pkg.go.dev/google.golang.org/api/support/bundler for more info on diode.
+// See https://pkg.go.dev/google.golang.org/api/support/bundler for more info on bundler.
 func NewWriter(w io.Writer, opts []WriterOption) *Writer {
 	bw := &Writer{
 		w:    w,
