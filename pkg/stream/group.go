@@ -1,12 +1,18 @@
 package stream
 
 import (
+	bbx "github.com/BinaryHexer/nbw/internal/bundler"
+	"github.com/reugn/go-streams"
+	"google.golang.org/api/support/bundler"
 	"reflect"
 	"sync"
 	"time"
+)
 
-	"github.com/reugn/go-streams"
-	"google.golang.org/api/support/bundler"
+const (
+	DefaultDelayThreshold       = 2 * time.Second
+	DefaultBundleCountThreshold = 1000
+	DefaultBufferedByteLimit    = 10 * 1e6 // 10MiB
 )
 
 // GroupFunc is a filter predicate function.
@@ -41,7 +47,7 @@ type Aggregator struct {
 
 // NewAggregator returns a new Aggregator instance.
 // groupFunc is the grouping function.
-func NewAggregator(groupFunc GroupFunc) *Aggregator {
+func NewAggregator(groupFunc GroupFunc, opts ...bbx.Option) *Aggregator {
 	a := &Aggregator{
 		GroupF:   groupFunc,
 		in:       make(chan interface{}),
@@ -52,7 +58,7 @@ func NewAggregator(groupFunc GroupFunc) *Aggregator {
 	}
 	pool := &sync.Pool{
 		New: func() interface{} {
-			return a.newBundler()
+			return a.newBundler(opts...)
 		},
 	}
 	a.bundlerPool = pool
@@ -138,14 +144,19 @@ func (a *Aggregator) getBundler(k string) *bundler.Bundler {
 	return b
 }
 
-func (a *Aggregator) newBundler() *bundler.Bundler {
+func (a *Aggregator) newBundler(opts ...bbx.Option) *bundler.Bundler {
 	var e wrappedElement
-	b := bundler.NewBundler(&e, func(p interface{}) {
+	b := bbx.NewBundler(&e, func(p interface{}) {
 		a.emit(p.([]*wrappedElement))
 	})
-	b.BundleCountThreshold = 1000
-	b.DelayThreshold = 2 * time.Second
-	b.BufferedByteLimit = 10 * 1e6 // 10MiB
+
+	b.BundleCountThreshold = DefaultBundleCountThreshold
+	b.DelayThreshold = DefaultDelayThreshold
+	b.BufferedByteLimit = DefaultBufferedByteLimit
+
+	for _, o := range opts {
+		o(b)
+	}
 
 	return b
 }

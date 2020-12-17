@@ -1,0 +1,8 @@
+runner:
+  golangci-lint:
+    cmd: golangci-lint run --config=build/ci/lint/golangci.yml --out-format=line-number ./...
+
+    # https://github.com/quasilyte/go-consistent
+    # TODO: Temporary solution until added to golangci-lint: https://github.com/golangci/golangci-lint/issues/288
+    go-consistent:
+      cmd: go-consistent

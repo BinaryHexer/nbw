@@ -8,17 +8,13 @@ import (
 	"sync"
 	"time"
 
+	bbx "github.com/BinaryHexer/nbw/internal/bundler"
 	"google.golang.org/api/support/bundler"
 )
 
 const (
-	DefaultDelayThreshold       = time.Second
-	DefaultBundleCountThreshold = 1000
-	DefaultBundleByteThreshold  = 1e6     // 1MiB
-	DefaultBundleByteLimit      = 0       // unlimited
-	DefaultBufferedByteLimit    = 8 * 1e6 // 8MiB
-	DefaultErrChanCapacity      = 10
-	errWriteErr                 = "failed to write: %v"
+	DefaultErrChanCapacity = 10
+	errWriteErr            = "failed to write: %v"
 )
 
 //nolint:gochecknoglobals  // necessary to maintain bufPool(byte) pool and errors
@@ -32,61 +28,65 @@ var (
 )
 
 // WriterOption can be used to setup the writer.
-type WriterOption func(*Writer)
+type WriterOption func(*Writer) bbx.Option
 
 // WithDelayThreshold sets the interval at which the bundler is flushed.
 // The default is DefaultDelayThreshold.
 func WithDelayThreshold(delay time.Duration) WriterOption {
-	return WriterOption(func(bw *Writer) {
-		bw.b.DelayThreshold = delay
+	return WriterOption(func(bw *Writer) bbx.Option {
+		return bbx.WithDelayThreshold(delay)
 	})
 }
 
 // WithBundleCountThreshold sets the max number of items after which the bundler is flushed.
 // The default is DefaultBundleCountThreshold.
 func WithBundleCountThreshold(n int) WriterOption {
-	return WriterOption(func(bw *Writer) {
-		bw.b.BundleCountThreshold = n
+	return WriterOption(func(bw *Writer) bbx.Option {
+		return bbx.WithBundleCountThreshold(n)
 	})
 }
 
 // WithBundleByteThreshold sets the max size of the bundle (in bytes) at which the
 // bundler is flushed. The default is DefaultBundleByteThreshold.
 func WithBundleByteThreshold(n int) WriterOption {
-	return WriterOption(func(bw *Writer) {
-		bw.b.BundleByteThreshold = n
+	return WriterOption(func(bw *Writer) bbx.Option {
+		return bbx.WithBundleByteThreshold(n)
 	})
 }
 
 // WithBundleByteLimit sets the maximum size of a bundle, in bytes.
 // Zero means unlimited. The default is DefaultBundleByteLimit.
 func WithBundleByteLimit(n int) WriterOption {
-	return WriterOption(func(bw *Writer) {
-		bw.b.BundleByteLimit = n
+	return WriterOption(func(bw *Writer) bbx.Option {
+		return bbx.WithBundleByteLimit(n)
 	})
 }
 
 // WithBufferedByteLimit sets the maximum number of bytes that the Bundler will keep
 // in memory before returning ErrOverflow. The default is DefaultBufferedByteLimit.
 func WithBufferedByteLimit(n int) WriterOption {
-	return WriterOption(func(bw *Writer) {
-		bw.b.BufferedByteLimit = n
+	return WriterOption(func(bw *Writer) bbx.Option {
+		return bbx.WithBufferedByteLimit(n)
 	})
 }
 
 // WithOnError sets the function to be executed on errors.
 // The default is a simple log.
 func WithOnError(f func(err error)) WriterOption {
-	return WriterOption(func(bw *Writer) {
+	return WriterOption(func(bw *Writer) bbx.Option {
 		bw.onError = f
+
+		return nil
 	})
 }
 
 // WithErrorChannelCapacity sets the buffer capacity of errors channel.
 // The default is DefaultErrChanCapacity.
 func WithErrorChannelCapacity(n int) WriterOption {
-	return WriterOption(func(bw *Writer) {
+	return WriterOption(func(bw *Writer) bbx.Option {
 		bw.errs = make(chan error, n)
+
+		return nil
 	})
 }
 
@@ -120,29 +120,39 @@ func NewWriter(w io.Writer, opts []WriterOption) *Writer {
 			log.Printf("Dropped writes due to: %v", err)
 		},
 	}
-	b := bw.newBundler()
-	bw.b = b
 
-	for _, o := range opts {
-		o(bw)
-	}
+	bOpts := bw.applyOpts(opts)
+	b := bw.newBundler(bOpts...)
+	bw.b = b
 
 	return bw
 }
 
-func (bw *Writer) newBundler() *bundler.Bundler {
-	b := bundler.NewBundler(&[]byte{}, func(p interface{}) {
+func (bw *Writer) applyOpts(opts []WriterOption) []bbx.Option {
+	bbOpts := make([]bbx.Option, 0)
+
+	for _, o := range opts {
+		bbOpt := o(bw)
+		if bbOpt != nil {
+			bbOpts = append(bbOpts, bbOpt)
+		}
+	}
+
+	return bbOpts
+}
+
+func (bw *Writer) newBundler(opts ...bbx.Option) *bundler.Bundler {
+	b := bbx.NewBundler(&[]byte{}, func(p interface{}) {
 		xs := p.([]*[]byte)
 		for _, x := range xs {
 			b := *x
 			bw.write(b)
 		}
 	})
-	b.DelayThreshold = DefaultDelayThreshold
-	b.BundleCountThreshold = DefaultBundleCountThreshold
-	b.BundleByteThreshold = DefaultBundleByteThreshold
-	b.BundleByteLimit = DefaultBundleByteLimit
-	b.BufferedByteLimit = DefaultBufferedByteLimit
+
+	for _, o := range opts {
+		o(b)
+	}
 
 	return b
 }

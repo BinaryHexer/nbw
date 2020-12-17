@@ -1,6 +1,7 @@
 package stream
 
 import (
+	bbx "github.com/BinaryHexer/nbw/internal/bundler"
 	"github.com/reugn/go-streams"
 	"github.com/reugn/go-streams/flow"
 	"runtime"
@@ -23,12 +24,12 @@ type FilterFn func(Metadata) bool
 type GroupFn func(Metadata) string
 type GroupFilterFn func([]Metadata) bool
 
-func NewBasicFlow(mapFunc MapFn, filterFunc1 FilterFn, groupFunc GroupFn, filterFunc2 GroupFilterFn) streams.Flow {
+func NewBasicFlow(mapFunc MapFn, filterFunc1 FilterFn, groupFunc GroupFn, filterFunc2 GroupFilterFn, opts ...bbx.Option) streams.Flow {
 	p := uint(runtime.NumCPU())
 
 	m1 := flow.NewMap(toMapFunc(mapFunc), p)
 	f1 := flow.NewFilter(toFilterFunc(filterFunc1), p)
-	a := NewAggregator(toGroupFunc(groupFunc))
+	a := NewAggregator(toGroupFunc(groupFunc), opts...)
 	m2 := flow.NewMap(func(i interface{}) interface{} {
 		xs := i.([]interface{})
 		mds := make([]Metadata, len(xs))
