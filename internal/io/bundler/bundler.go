@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	bbx "github.com/BinaryHexer/nbw/internal/bundler"
+	bbi "github.com/BinaryHexer/nbw/internal/bundler"
+	bbx "github.com/BinaryHexer/nbw/pkg/bundler"
 	"google.golang.org/api/support/bundler"
 )
 
@@ -142,7 +143,7 @@ func (bw *Writer) applyOpts(opts []WriterOption) []bbx.Option {
 }
 
 func (bw *Writer) newBundler(opts ...bbx.Option) *bundler.Bundler {
-	b := bbx.NewBundler(&[]byte{}, func(p interface{}) {
+	b := bbi.NewBundler(&[]byte{}, func(p interface{}) {
 		xs := p.([]*[]byte)
 		for _, x := range xs {
 			b := *x

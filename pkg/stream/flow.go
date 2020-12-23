@@ -1,7 +1,7 @@
 package stream
 
 import (
-	bbx "github.com/BinaryHexer/nbw/internal/bundler"
+	bbx "github.com/BinaryHexer/nbw/pkg/bundler"
 	"github.com/reugn/go-streams"
 	"github.com/reugn/go-streams/flow"
 	"runtime"

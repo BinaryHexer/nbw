@@ -35,6 +35,8 @@ func main() {
 		logger.Info("hello world", zap.Int("iter", iter))
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	_ = logger.Sync()
 }
 
 func newNonBlockingZapLogger(lvl zapcore.Level, w io.Writer) *zap.Logger {

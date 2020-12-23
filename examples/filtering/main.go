@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/BinaryHexer/nbw"
+	iox "github.com/BinaryHexer/nbw/pkg/io"
 	"github.com/BinaryHexer/nbw/pkg/stream"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -24,7 +25,7 @@ func main() {
 		wg.Add(1)
 		for i := 0; i < 10; i++ {
 			iter := i
-			logger.Error("hello", zap.String("request_id", "ID001"), zap.Int("iter", iter))
+			logger.Error("hello", zap.String("uuid", "ID001"), zap.Int("iter", iter))
 		}
 		wg.Done()
 	}()
@@ -34,7 +35,7 @@ func main() {
 		wg.Add(1)
 		for i := 0; i < 10; i++ {
 			iter := i
-			logger.Info("hello", zap.String("request_id", "ID002"), zap.Int("iter", iter))
+			logger.Info("hello", zap.String("uuid", "ID002"), zap.Int("iter", iter))
 		}
 		wg.Done()
 	}()
@@ -44,9 +45,9 @@ func main() {
 		wg.Add(1)
 		for i := 0; i < 10; i++ {
 			iter := i
-			logger.Info("hello", zap.String("request_id", "ID003"), zap.Int("iter", iter))
+			logger.Info("hello", zap.String("uuid", "ID003"), zap.Int("iter", iter))
 		}
-		logger.Error("hello", zap.String("request_id", "ID003"), zap.Int("iter", 10))
+		logger.Error("hello", zap.String("uuid", "ID003"), zap.Int("iter", 10))
 		wg.Done()
 	}()
 
@@ -54,7 +55,6 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 	_ = logger.Sync()
-	_ = writer.Close()
 }
 
 func basicFlow() (stream.MapFn, stream.FilterFn, stream.GroupFn, stream.GroupFilterFn) {
@@ -68,9 +68,9 @@ func basicFlow() (stream.MapFn, stream.FilterFn, stream.GroupFn, stream.GroupFil
 			return md, i
 		}
 
-		requestID, ok := obj["request_id"]
+		uuid, ok := obj["uuid"]
 		if !ok {
-			requestID = ""
+			uuid = ""
 		}
 
 		level, ok := obj["level"]
@@ -79,26 +79,26 @@ func basicFlow() (stream.MapFn, stream.FilterFn, stream.GroupFn, stream.GroupFil
 		}
 
 		md = stream.Metadata{
-			"request_id": requestID.(string),
-			"level":      level.(string),
+			"uuid":  uuid.(string),
+			"level": level.(string),
 		}
 
 		return md, i
 	}
 
-	// remove any logs with request_id ID001
+	// remove any logs with uuid ID001
 	filterFn := func(md stream.Metadata) bool {
-		rID := md["request_id"]
-		if rID == "ID001" {
+		uuid := md["uuid"]
+		if uuid == "ID001" {
 			return false
 		}
 
 		return true
 	}
 
-	// group by request_id
+	// group by uuid
 	groupFn := func(md stream.Metadata) string {
-		return md["request_id"]
+		return md["uuid"]
 	}
 
 	// remove any group with <1 error log
@@ -123,7 +123,7 @@ func newNonBlockingZapLogger(lvl zapcore.Level, w io.Writer) *zap.Logger {
 	enc := zapcore.NewJSONEncoder(ec)
 	return zap.New(zapcore.NewCore(
 		enc,
-		zapcore.AddSync(w),
+		iox.AddCloserSync(w),
 		lvl,
 	))
 }

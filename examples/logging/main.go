@@ -14,6 +14,8 @@ func main() {
 	logger := newNonBlockingZapLogger(zapcore.InfoLevel, writer)
 
 	logger.Info("hello world", zap.String("a", "1"))
+
+	_ = logger.Sync()
 }
 
 func newNonBlockingZapLogger(lvl zapcore.Level, w io.Writer) *zap.Logger {
