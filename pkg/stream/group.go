@@ -5,6 +5,7 @@ import (
 	bbx "github.com/BinaryHexer/nbw/pkg/bundler"
 	"github.com/reugn/go-streams"
 	"google.golang.org/api/support/bundler"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -106,13 +107,21 @@ func (a *Aggregator) receive() {
 	for elem := range a.in {
 		a.store(a.GroupF(elem), elem)
 	}
+	keys := make([]string, 0)
 
 	a.lock.RLock()
 	// flush all bundlers
 	for k := range a.bundlers {
-		a.evict <- k
+		keys = append(keys, k)
 	}
 	a.lock.RUnlock()
+
+	for _, k := range keys {
+		a.evict <- k
+	}
+
+	wait := math.Min(float64(100*len(keys)), 15000)
+	time.Sleep(time.Duration(wait) * time.Millisecond)
 
 	// close the evict channel
 	close(a.evict)
@@ -155,7 +164,7 @@ func (a *Aggregator) getBundler(k string) *bundler.Bundler {
 	return b
 }
 
-func (a *Aggregator) removeBundler(k string) *bundler.Bundler {
+func (a *Aggregator) removeBundler(k string) {
 	a.lock.RLock()
 	b, ok := a.bundlers[k]
 	a.lock.RUnlock()
@@ -165,9 +174,12 @@ func (a *Aggregator) removeBundler(k string) *bundler.Bundler {
 		// remove from map so no additional data is written
 		delete(a.bundlers, k)
 		a.lock.Unlock()
-	}
 
-	return b
+		// ensure all data in the bundler is flushed
+		b.Flush()
+		// return bundler to the pool
+		a.bundlerPool.Put(b)
+	}
 }
 
 func (a *Aggregator) newBundler(opts ...bbx.Option) *bundler.Bundler {
@@ -198,19 +210,13 @@ func (a *Aggregator) emit(elements []*wrappedElement) {
 	}
 
 	a.out <- t
-
-	_ = a.removeBundler(k)
+	a.removeBundler(k)
 }
 
 func (a *Aggregator) gc() {
 	for k := range a.evict {
-		b := a.removeBundler(k)
-		if b != nil {
-			// ensure all data in the bundler is flushed
-			b.Flush()
-			// return bundler to the pool
-			a.bundlerPool.Put(b)
-		}
+		k := k
+		a.removeBundler(k)
 	}
 	close(a.done)
 }

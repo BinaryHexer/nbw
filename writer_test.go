@@ -19,7 +19,7 @@ func TestBundlerWriter(t *testing.T) {
 		{msg: "Hello, World!"},
 		{msg: "1234567890"},
 		{msg: "@#$^%&*()!~"},
-		{msg: `{"request_id":"ID001","level":"info","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]}`},
+		{msg: `{"uuid":"ID001","level":"info","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]}`},
 	}
 
 	for _, tt := range tests {
@@ -42,7 +42,7 @@ func TestDiodeWriter(t *testing.T) {
 		{msg: "Hello, World!"},
 		{msg: "1234567890"},
 		{msg: "@#$^%&*()!~"},
-		{msg: `{"request_id":"ID001","level":"info","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]}`},
+		{msg: `{"uuid":"ID001","level":"info","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]}`},
 	}
 
 	for _, tt := range tests {
@@ -81,13 +81,13 @@ func TestStreamWriter(t *testing.T) {
 		},
 		{
 			msgs: []string{
-				`{"request_id":"ID001","level":"debug","path":"/api/path","request_size":1100}`,
-				`{"request_id":"ID001","level":"info","path":"/api/path","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]},"msg":"request"}`,
-				`{"request_id":"ID001","level":"error","msg":"error occurred"}`,
+				`{"uuid":"ID001","level":"debug","path":"/api/path","request_size":1100}`,
+				`{"uuid":"ID001","level":"info","path":"/api/path","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]},"msg":"request"}`,
+				`{"uuid":"ID001","level":"error","msg":"error occurred"}`,
 			},
 			want: []string{
-				`{"request_id":"ID001","level":"info","path":"/api/path","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]},"msg":"request"}`,
-				`{"request_id":"ID001","level":"error","msg":"error occurred"}`,
+				`{"uuid":"ID001","level":"info","path":"/api/path","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]},"msg":"request"}`,
+				`{"uuid":"ID001","level":"error","msg":"error occurred"}`,
 			},
 			flows: []streams.Flow{
 				stream.NewBasicFlow(
@@ -100,9 +100,9 @@ func TestStreamWriter(t *testing.T) {
 							return md, i
 						}
 
-						requestID, ok := obj["request_id"]
+						uuid, ok := obj["uuid"]
 						if !ok {
-							requestID = ""
+							uuid = ""
 						}
 
 						level, ok := obj["level"]
@@ -116,9 +116,9 @@ func TestStreamWriter(t *testing.T) {
 						}
 
 						md = stream.Metadata{
-							"request_id": requestID.(string),
-							"level":      level.(string),
-							"path":       path.(string),
+							"uuid":  uuid.(string),
+							"level": level.(string),
+							"path":  path.(string),
 						}
 
 						return md, i
@@ -132,7 +132,7 @@ func TestStreamWriter(t *testing.T) {
 						return true
 					},
 					func(md stream.Metadata) string {
-						return md["request_id"]
+						return md["uuid"]
 					},
 					func(mds []stream.Metadata) bool {
 						return true
