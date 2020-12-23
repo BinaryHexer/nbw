@@ -42,6 +42,7 @@ type Aggregator struct {
 	evict       chan string
 	done        chan struct{}
 	bundlers    map[string]*bundler.Bundler
+	lock        *sync.RWMutex
 	bundlerPool *sync.Pool
 }
 
@@ -55,6 +56,7 @@ func NewAggregator(groupFunc GroupFunc, opts ...bbx.Option) *Aggregator {
 		evict:    make(chan string, 10),
 		done:     make(chan struct{}),
 		bundlers: make(map[string]*bundler.Bundler),
+		lock:     &sync.RWMutex{},
 	}
 	pool := &sync.Pool{
 		New: func() interface{} {
@@ -104,10 +106,12 @@ func (a *Aggregator) receive() {
 		a.store(a.GroupF(elem), elem)
 	}
 
+	a.lock.RLock()
 	// flush all bundlers
 	for k := range a.bundlers {
 		a.evict <- k
 	}
+	a.lock.RUnlock()
 
 	// close the evict channel
 	close(a.evict)
@@ -135,10 +139,31 @@ func (a *Aggregator) getBundler(k string) *bundler.Bundler {
 		k = "default"
 	}
 
+	a.lock.RLock()
 	b, ok := a.bundlers[k]
+	a.lock.RUnlock()
+
 	if !ok {
 		b = a.bundlerPool.Get().(*bundler.Bundler)
+
+		a.lock.Lock()
 		a.bundlers[k] = b
+		a.lock.Unlock()
+	}
+
+	return b
+}
+
+func (a *Aggregator) removeBundler(k string) *bundler.Bundler {
+	a.lock.RLock()
+	b, ok := a.bundlers[k]
+	a.lock.RUnlock()
+
+	if ok {
+		a.lock.Lock()
+		// remove from map so no additional data is written
+		delete(a.bundlers, k)
+		a.lock.Unlock()
 	}
 
 	return b
@@ -173,22 +198,13 @@ func (a *Aggregator) emit(elements []*wrappedElement) {
 
 	a.out <- t
 
-	{
-		defer func() {
-			if r := recover(); r != nil {
-				// do nothing
-			}
-		}()
-		a.evict <- k
-	}
+	_ = a.removeBundler(k)
 }
 
 func (a *Aggregator) gc() {
 	for k := range a.evict {
-		b, ok := a.bundlers[k]
-		if ok {
-			// remove from map so no additional data is written
-			delete(a.bundlers, k)
+		b := a.removeBundler(k)
+		if b != nil {
 			// ensure all data in the bundler is flushed
 			b.Flush()
 			// return bundler to the pool
