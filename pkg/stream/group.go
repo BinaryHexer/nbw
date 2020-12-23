@@ -1,12 +1,18 @@
 package stream
 
 import (
+	bbx "github.com/BinaryHexer/nbw/internal/bundler"
+	"github.com/reugn/go-streams"
+	"google.golang.org/api/support/bundler"
 	"reflect"
 	"sync"
 	"time"
+)
 
-	"github.com/reugn/go-streams"
-	"google.golang.org/api/support/bundler"
+const (
+	DefaultDelayThreshold       = 2 * time.Second
+	DefaultBundleCountThreshold = 1000
+	DefaultBufferedByteLimit    = 10 * 1e6 // 10MiB
 )
 
 // GroupFunc is a filter predicate function.
@@ -36,12 +42,13 @@ type Aggregator struct {
 	evict       chan string
 	done        chan struct{}
 	bundlers    map[string]*bundler.Bundler
+	lock        *sync.RWMutex
 	bundlerPool *sync.Pool
 }
 
 // NewAggregator returns a new Aggregator instance.
 // groupFunc is the grouping function.
-func NewAggregator(groupFunc GroupFunc) *Aggregator {
+func NewAggregator(groupFunc GroupFunc, opts ...bbx.Option) *Aggregator {
 	a := &Aggregator{
 		GroupF:   groupFunc,
 		in:       make(chan interface{}),
@@ -49,10 +56,11 @@ func NewAggregator(groupFunc GroupFunc) *Aggregator {
 		evict:    make(chan string, 10),
 		done:     make(chan struct{}),
 		bundlers: make(map[string]*bundler.Bundler),
+		lock:     &sync.RWMutex{},
 	}
 	pool := &sync.Pool{
 		New: func() interface{} {
-			return a.newBundler()
+			return a.newBundler(opts...)
 		},
 	}
 	a.bundlerPool = pool
@@ -98,10 +106,12 @@ func (a *Aggregator) receive() {
 		a.store(a.GroupF(elem), elem)
 	}
 
+	a.lock.RLock()
 	// flush all bundlers
 	for k := range a.bundlers {
 		a.evict <- k
 	}
+	a.lock.RUnlock()
 
 	// close the evict channel
 	close(a.evict)
@@ -129,23 +139,49 @@ func (a *Aggregator) getBundler(k string) *bundler.Bundler {
 		k = "default"
 	}
 
+	a.lock.RLock()
 	b, ok := a.bundlers[k]
+	a.lock.RUnlock()
+
 	if !ok {
 		b = a.bundlerPool.Get().(*bundler.Bundler)
+
+		a.lock.Lock()
 		a.bundlers[k] = b
+		a.lock.Unlock()
 	}
 
 	return b
 }
 
-func (a *Aggregator) newBundler() *bundler.Bundler {
+func (a *Aggregator) removeBundler(k string) *bundler.Bundler {
+	a.lock.RLock()
+	b, ok := a.bundlers[k]
+	a.lock.RUnlock()
+
+	if ok {
+		a.lock.Lock()
+		// remove from map so no additional data is written
+		delete(a.bundlers, k)
+		a.lock.Unlock()
+	}
+
+	return b
+}
+
+func (a *Aggregator) newBundler(opts ...bbx.Option) *bundler.Bundler {
 	var e wrappedElement
-	b := bundler.NewBundler(&e, func(p interface{}) {
+	b := bbx.NewBundler(&e, func(p interface{}) {
 		a.emit(p.([]*wrappedElement))
 	})
-	b.BundleCountThreshold = 1000
-	b.DelayThreshold = 2 * time.Second
-	b.BufferedByteLimit = 10 * 1e6 // 10MiB
+
+	b.BundleCountThreshold = DefaultBundleCountThreshold
+	b.DelayThreshold = DefaultDelayThreshold
+	b.BufferedByteLimit = DefaultBufferedByteLimit
+
+	for _, o := range opts {
+		o(b)
+	}
 
 	return b
 }
@@ -162,22 +198,13 @@ func (a *Aggregator) emit(elements []*wrappedElement) {
 
 	a.out <- t
 
-	{
-		defer func() {
-			if r := recover(); r != nil {
-				// do nothing
-			}
-		}()
-		a.evict <- k
-	}
+	_ = a.removeBundler(k)
 }
 
 func (a *Aggregator) gc() {
 	for k := range a.evict {
-		b, ok := a.bundlers[k]
-		if ok {
-			// remove from map so no additional data is written
-			delete(a.bundlers, k)
+		b := a.removeBundler(k)
+		if b != nil {
 			// ensure all data in the bundler is flushed
 			b.Flush()
 			// return bundler to the pool

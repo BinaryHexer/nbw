@@ -1,0 +1,123 @@
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  gocognit:
+    min-complexity: 10
+  nestif:
+    min-complexity: 4
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  gocyclo:
+    min-complexity: 10
+  godot:
+    check-all: true
+  govet:
+    check-shadowing: true
+    settings:
+      printf: # analyzer name, run `go tool vet help` to see all analyzers
+        funcs: # run `go tool vet help printf` to see available settings for `printf` analyzer
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+  lll:
+    line-length: 160
+  maligned:
+    suggest-new: true
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+  nolintlint:
+    allow-leading-space: true
+    require-explanation: true
+    require-specific: true
+  unparam:
+    check-exported: true
+  unused:
+    check-exported: false
+  whitespace:
+    multi-if: true
+    multi-func: false
+  wsl:
+    allow-cuddle-declarations: true
+    force-err-cuddling: true
+    force-case-trailing-whitespace: 2
+  gofumpt:
+    extra-rules: true
+
+linters:
+  disable-all: true
+  enable:
+    - deadcode
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - structcheck
+    - typecheck
+    - unused
+    - varcheck
+    - asciicheck
+    - bodyclose
+    - depguard
+    - dogsled
+    - dupl
+    - exhaustive
+    - exportloopref
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - godox
+    - goerr113
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomnd
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - interfacer
+    - lll
+    - maligned
+    - misspell
+    - nakedret
+    - nestif
+    - nlreturn
+    - noctx
+    - nolintlint
+    - prealloc
+    - rowserrcheck
+    - scopelint
+    - sqlclosecheck
+    - stylecheck
+    - testpackage
+    - unconvert
+    - unparam
+    - whitespace
+    - wsl
+
+  # don't enable:
+  # - golint
+  # - goheader
+  # - gci
+
+run:
+  skip-dirs:
+    - bin
