@@ -1,7 +1,8 @@
 package stream
 
 import (
-	bbx "github.com/BinaryHexer/nbw/internal/bundler"
+	bbi "github.com/BinaryHexer/nbw/internal/bundler"
+	bbx "github.com/BinaryHexer/nbw/pkg/bundler"
 	"github.com/reugn/go-streams"
 	"google.golang.org/api/support/bundler"
 	"reflect"
@@ -171,7 +172,7 @@ func (a *Aggregator) removeBundler(k string) *bundler.Bundler {
 
 func (a *Aggregator) newBundler(opts ...bbx.Option) *bundler.Bundler {
 	var e wrappedElement
-	b := bbx.NewBundler(&e, func(p interface{}) {
+	b := bbi.NewBundler(&e, func(p interface{}) {
 		a.emit(p.([]*wrappedElement))
 	})
 

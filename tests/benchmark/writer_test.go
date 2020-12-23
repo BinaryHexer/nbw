@@ -9,6 +9,7 @@ import (
 
 	"github.com/BinaryHexer/nbw"
 	"github.com/BinaryHexer/nbw/internal/io/bundler"
+	"github.com/reugn/go-streams/flow"
 )
 
 func BenchmarkDiscardWriter(b *testing.B) {
@@ -71,6 +72,16 @@ func BenchmarkDiscardWriter(b *testing.B) {
 			}
 		})
 	})
+	b.Run("Stream", func(b *testing.B) {
+		fw := fileWriter()
+		w := nbw.NewStreamWriter(fw, flow.NewPassThrough())
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, _ = w.Write([]byte(getMessage()))
+			}
+		})
+	})
 }
 
 func BenchmarkFileWriter(b *testing.B) {
@@ -126,6 +137,16 @@ func BenchmarkFileWriter(b *testing.B) {
 			fmt.Printf("Logger Dropped %d messages", missed)
 		})
 		w := nbw.NewBundlerWriter(dw, bundler.WithBufferedByteLimit(b.N*1024))
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_, _ = w.Write([]byte(getMessage()))
+			}
+		})
+	})
+	b.Run("Stream", func(b *testing.B) {
+		fw := fileWriter()
+		w := nbw.NewStreamWriter(fw, flow.NewPassThrough())
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {

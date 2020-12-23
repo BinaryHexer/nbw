@@ -9,7 +9,6 @@ import (
 func TestAggregator(t *testing.T) {
 	in := make(chan interface{})
 	out := make(chan interface{})
-	done := make(chan bool)
 
 	aggr := NewAggregator(func(i interface{}) string {
 		e := i.(int)
@@ -27,8 +26,7 @@ func TestAggregator(t *testing.T) {
 	var _input = []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	var _expectedOutput = [][]int{{1, 3, 5, 7, 9}, {2, 4, 6, 8}}
 
-	go ingest(_input, in, done)
-	go deferClose(done, in)
+	go ingest(_input, in)
 	go func() {
 		source.
 			Via(flow).
@@ -47,14 +45,9 @@ func TestAggregator(t *testing.T) {
 	assert.ElementsMatch(t, _expectedOutput, _output)
 }
 
-func ingest(source []int, in chan interface{}, done chan bool) {
+func ingest(source []int, in chan interface{}) {
 	for _, e := range source {
 		in <- e
 	}
-	done <- true
-}
-
-func deferClose(done chan bool, in chan interface{}) {
-	<-done
 	close(in)
 }
