@@ -1,7 +1,6 @@
 package bundler
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +24,6 @@ var (
 			return make([]byte, 0, 500)
 		},
 	}
-	errClosed = errors.New("writer already closed")
 )
 
 // WriterOption can be used to setup the writer.
@@ -159,11 +157,6 @@ func (bw *Writer) newBundler(opts ...bbx.Option) *bundler.Bundler {
 }
 
 func (bw *Writer) Write(p []byte) (int, error) {
-	// when the writer is closed, b will be nil.
-	if bw.b == nil {
-		return 0, errClosed
-	}
-
 	// copy slice here because byte buffer may changes before bundler flush the byte slice
 	// more memory allocations but it should be fast because write operation is non-blocking and slice copy is 60 ns/op operation
 	q := append(bufPool.Get().([]byte), p...)
@@ -177,13 +170,8 @@ func (bw *Writer) Write(p []byte) (int, error) {
 }
 
 func (bw *Writer) Close() error {
-	bb := bw.b
-
-	// unset the bundler so no further writes can occur
-	bw.b = nil
-
 	// flush the bundler
-	bb.Flush()
+	bw.b.Flush()
 
 	// close if the underlying writer supports it
 	if w, ok := bw.w.(io.Closer); ok {
