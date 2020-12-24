@@ -10,11 +10,13 @@ import (
 	"github.com/cloudfoundry/go-diodes"
 )
 
-var bufPool = &sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 0, 500)
-	},
-}
+var (
+	bufPool = &sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 0, 500)
+		},
+	}
+)
 
 type Alerter func(missed int)
 

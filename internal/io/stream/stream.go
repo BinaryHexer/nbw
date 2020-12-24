@@ -7,29 +7,39 @@ import (
 	"github.com/reugn/go-streams"
 	ext "github.com/reugn/go-streams/extension"
 
+	"errors"
+	"github.com/BinaryHexer/nbw/pkg/atomic"
 	"github.com/BinaryHexer/nbw/pkg/stream"
 	"sync"
 )
 
-var bufPool = &sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 0, 500)
-	},
-}
+var (
+	bufPool = &sync.Pool{
+		New: func() interface{} {
+			return make([]byte, 0, 500)
+		},
+	}
+	errClosed = errors.New("writer already closed")
+)
 
 type Writer struct {
-	w    io.Writer
-	in   chan interface{}
-	out  chan interface{}
-	done chan struct{}
+	w   io.Writer
+	in  chan interface{}
+	out chan interface{}
+
+	done   chan struct{}
+	closed *atomic.Bool
+	lock   *sync.Mutex
 }
 
 func NewWriter(w io.Writer, flows []streams.Flow) *Writer {
 	wr := &Writer{
-		w:    w,
-		in:   make(chan interface{}),
-		out:  make(chan interface{}),
-		done: make(chan struct{}),
+		w:      w,
+		in:     make(chan interface{}),
+		out:    make(chan interface{}),
+		done:   make(chan struct{}),
+		closed: &atomic.Bool{},
+		lock:   &sync.Mutex{},
 	}
 
 	go wr.write()
@@ -39,6 +49,13 @@ func NewWriter(w io.Writer, flows []streams.Flow) *Writer {
 }
 
 func (w *Writer) Write(p []byte) (int, error) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	if w.closed.Get() {
+		return 0, errClosed
+	}
+
 	// p might be pooled so we avoid to hold a reference to it, and instead copy it.
 	p = append(bufPool.Get().([]byte), p...)
 	w.in <- p
@@ -47,6 +64,12 @@ func (w *Writer) Write(p []byte) (int, error) {
 }
 
 func (w *Writer) Close() error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	// mark as closed
+	w.closed.Set(true)
+
 	// close the input channel
 	close(w.in)
 

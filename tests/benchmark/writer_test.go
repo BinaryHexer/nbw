@@ -47,7 +47,6 @@ func BenchmarkWriter(b *testing.B) {
 				_, _ = w.Write([]byte(getMessage()))
 			}
 		})
-		_ = w.Close()
 	})
 	b.Run("Bundler", func(b *testing.B) {
 		fw := fileWriter()
@@ -58,7 +57,6 @@ func BenchmarkWriter(b *testing.B) {
 				_, _ = w.Write([]byte(getMessage()))
 			}
 		})
-		_ = w.Close()
 	})
 	b.Run("Diode.Bundler", func(b *testing.B) {
 		fw := fileWriter()
@@ -72,7 +70,6 @@ func BenchmarkWriter(b *testing.B) {
 				_, _ = w.Write([]byte(getMessage()))
 			}
 		})
-		_ = w.Close()
 	})
 	b.Run("Bundler.Diode", func(b *testing.B) {
 		fw := fileWriter()
@@ -86,7 +83,6 @@ func BenchmarkWriter(b *testing.B) {
 				_, _ = w.Write([]byte(getMessage()))
 			}
 		})
-		_ = w.Close()
 	})
 	b.Run("Stream", func(b *testing.B) {
 		fw := fileWriter()
@@ -97,7 +93,6 @@ func BenchmarkWriter(b *testing.B) {
 				_, _ = w.Write([]byte(getMessage()))
 			}
 		})
-		_ = w.Close()
 	})
 }
 
@@ -112,15 +107,14 @@ func BenchmarkStreamWriter(b *testing.B) {
 				_, _ = w.Write([]byte(msg))
 			}
 		})
-		_ = w.Close()
 	})
 
 	b.Run("BasicFlow.Diode.Stream", func(b *testing.B) {
 		fw := fileWriter()
-		dw := nbw.NewDiodeWriter(fw, b.N, time.Second, func(missed int) {
+		sw := nbw.NewStreamWriter(fw, stream.NewBasicFlow(basicFlow()))
+		w := nbw.NewDiodeWriter(sw, b.N, time.Second, func(missed int) {
 			fmt.Printf("Logger Dropped %d messages", missed)
 		})
-		w := nbw.NewStreamWriter(dw, stream.NewBasicFlow(basicFlow()))
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
@@ -128,7 +122,19 @@ func BenchmarkStreamWriter(b *testing.B) {
 				_, _ = w.Write([]byte(msg))
 			}
 		})
-		_ = w.Close()
+	})
+
+	b.Run("BasicFlow.Bundler.Stream", func(b *testing.B) {
+		fw := fileWriter()
+		sw := nbw.NewStreamWriter(fw, stream.NewBasicFlow(basicFlow()))
+		w := nbw.NewBundlerWriter(sw, bundler.WithBufferedByteLimit(b.N*1024))
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				msg := fmt.Sprintf(`{"uuid":"%d","level":"info","path":"/api/path","request":{"int":6,"float":7.19,"str":"apple","str_arr":["a","b"]},"msg":"request"}`, rand.Int())
+				_, _ = w.Write([]byte(msg))
+			}
+		})
 	})
 }
 
